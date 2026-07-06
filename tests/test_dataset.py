@@ -135,6 +135,23 @@ def test_generate_synthetic_new_brand_category_shift() -> None:
     assert "rivian" in after
 
 
+def test_generate_synthetic_price_shock_is_a_discrete_step() -> None:
+    """The injected price shock is a one-time permanent step: mean price jumps once, flat elsewhere."""
+    drift = {  # no gradual inflation, so the ONLY jump is the shock
+        "price_inflation_per_week": 0.0,
+        "price_shock_week": 4,
+        "price_shock_multiplier": 1.5,
+    }
+    df = generate_synthetic(n=8000, seed=42, bad_fraction=0.0, n_weeks=8, drift=drift)
+    week = (df["posting_date"] - df["posting_date"].min()).dt.days // 7
+    means = df.groupby(week)["price"].mean()
+    ratios = (means / means.shift(1)).dropna()
+    assert ratios.loc[4] > 1.35  # a clear step up at the shock week
+    assert (
+        ratios.drop(index=4) < 1.1
+    ).all()  # flat before and after (no gradual creep)
+
+
 def test_load_dispatches_to_synthetic_source() -> None:
     """load() with the default (synthetic) config returns a non-empty canonical frame, no I/O."""
     df = load(load_settings())

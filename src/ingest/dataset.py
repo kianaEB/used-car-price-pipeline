@@ -141,6 +141,8 @@ def generate_synthetic(
     inflation = float(drift.get("price_inflation_per_week", 0.0))
     rising_null_col = drift.get("rising_null_column")
     new_brand_week = drift.get("new_brand_week")
+    shock_week = drift.get("price_shock_week")
+    shock_multiplier = float(drift.get("price_shock_multiplier", 1.0))
     reference_year = _SYNTHETIC_START.year
 
     week = rng.integers(0, n_weeks, size=n)
@@ -178,7 +180,14 @@ def generate_synthetic(
         - mileage * 0.04
         + rng.normal(0, 1500, size=n)
     )
-    price = price * (1.0 + inflation) ** week  # numeric drift across weeks -> PSI
+    price = (
+        price * (1.0 + inflation) ** week
+    )  # gradual numeric drift across weeks -> PSI
+    if shock_week is not None:
+        # INJECTED SCENARIO: a one-time, permanent market price jump at a single week (e.g. a
+        # pricing-source change), so PSI trips once at that transition -- distinct from the gradual
+        # inflation above, which stays below the alert threshold week to week.
+        price = np.where(week >= int(shock_week), price * shock_multiplier, price)
     price = np.clip(price, 800.0, None)
 
     df = pd.DataFrame(
