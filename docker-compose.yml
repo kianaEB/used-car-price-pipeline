@@ -1,20 +1,21 @@
-# docker compose up --build  →  Postgres + pipeline + dashboard.
-# Credentials come from .env (see .env.example). The 'cars' fallbacks are dev-only defaults.
+# docker compose up --build  ->  Postgres + pipeline (backfill) + dashboard.
+# Credentials come only from .env (see .env.example): POSTGRES_PASSWORD is required, never hardcoded.
+# User/DB name default to a non-secret dev value; the password has no fallback.
 
 services:
   db:
     image: postgres:16
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-cars}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cars}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
       POSTGRES_DB: ${POSTGRES_DB:-cars}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cars}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cars} -d ${POSTGRES_DB:-cars}"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
   pipeline:
     build: .
@@ -26,12 +27,12 @@ services:
       POSTGRES_HOST: db
       POSTGRES_PORT: 5432
       POSTGRES_USER: ${POSTGRES_USER:-cars}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cars}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
       POSTGRES_DB: ${POSTGRES_DB:-cars}
     volumes:
       - ./data:/app/data
       - ./artifacts:/app/artifacts
-    # Replay time-ordered batches to build run history, then exit.
+    # Replay time-ordered batches to build the run history in Postgres, then exit 0.
     command: ["python", "-m", "src.pipeline", "--backfill"]
 
   dashboard:
@@ -39,14 +40,24 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      pipeline:
+        condition: service_completed_successfully  # start once the run history exists
     environment:
       DB_BACKEND: postgres
       POSTGRES_HOST: db
       POSTGRES_PORT: 5432
       POSTGRES_USER: ${POSTGRES_USER:-cars}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cars}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
       POSTGRES_DB: ${POSTGRES_DB:-cars}
-    command: ["streamlit", "run", "dashboard/app.py", "--server.address=0.0.0.0", "--server.port=8501"]
+    volumes:
+      - ./data:/app/data  # share the pipeline's dq_report.json for the latest-report view
+    command:
+      - streamlit
+      - run
+      - dashboard/app.py
+      - --server.address=0.0.0.0
+      - --server.port=8501
+      - --server.headless=true
     ports:
       - "8501:8501"
 
