@@ -1,0 +1,29 @@
+# Core pipeline
+pandas>=2.0
+numpy>=1.24
+scikit-learn>=1.3
+scipy>=1.10
+sqlalchemy>=2.0
+pyyaml>=6.0
+python-dotenv>=1.0
+joblib>=1.3
+
+# Data quality — declarative schema layer (technical checks)
+pandera>=0.18
+
+# Databases — Postgres driver (SQLite needs nothing extra)
+psycopg2-binary>=2.9
+
+# Monitoring dashboard
+streamlit>=1.30
+matplotlib>=3.7
+
+# Optional scraper (stretch goal; NOT used by `make all`, tests, or CI)
+requests>=2.31
+beautifulsoup4>=4.12
+
+# Dev / test
+pytest>=7.4
+pytest-cov>=4.1
+ruff>=0.1
+black>=23.0

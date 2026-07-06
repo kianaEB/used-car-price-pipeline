@@ -1,0 +1,26 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Lint
+        run: |
+          ruff check src tests
+          black --check src tests
+      - name: Run tests with coverage (offline, synthetic data)
+        # Coverage gate: raise --cov-fail-under toward 70 as modules land (see SPEC §12).
+        # Prioritize coverage on src/quality and src/monitoring.
+        run: pytest --cov=src --cov-report=term-missing --cov-fail-under=15

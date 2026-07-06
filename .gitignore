@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# Secrets — never commit
+.env
+.streamlit/secrets.toml
+
+# Data: keep the folders (.gitkeep) but ignore their contents
+data/raw/*
+data/interim/*
+data/processed/*
+!data/raw/.gitkeep
+!data/interim/.gitkeep
+!data/processed/.gitkeep
+
+# Build artifacts
+artifacts/
+*.db
+*.joblib
+
+# Local Postgres volume (if bind-mounted) / OS
+pgdata/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,87 @@
+# Single source of parameters. Code reads this via src/config.py -- no magic numbers inline.
+
+seed: 42
+
+paths:
+  raw_dir: data/raw
+  interim_dir: data/interim
+  processed_dir: data/processed
+  artifacts_dir: artifacts
+  raw_file: data/raw/vehicles.csv        # where a downloaded/cached real dataset lives (source != synthetic)
+  dq_report: data/processed/dq_report.json
+  metrics: artifacts/metrics.json
+  model: artifacts/model.joblib
+
+# Data source. DEFAULT is 'synthetic' -> the pipeline runs end to end with NO download and NO
+# accounts. Point at a real dataset only if you want a real-world MAE (see `make data-real`).
+dataset:
+  source: synthetic                      # synthetic | url | kaggle | openml
+  # --- synthetic generator (default): self-contained, reproducible, KNOWN ground truth ---
+  n_rows: 8000
+  n_weeks: 8                             # weekly batches, so monitoring/drift have real history
+  bad_fraction: 0.06                     # injected defect rate = ground truth for the DQ catch-rate
+  drift:                                 # controlled drift injected across weeks (alerts become demonstrable)
+    price_inflation_per_week: 0.015      # prices trend up over time (numeric drift -> PSI)
+    rising_null_column: mileage          # this column's null-rate climbs over the weeks
+    new_brand_week: 5                    # a new brand appears mid-stream (category shift)
+  # --- optional real dataset (used by `make data-real`) ---
+  url: ""                                # source=url: a direct CSV link; cached + checksum-verified
+  sha256: ""                             # optional integrity check for source=url
+  kaggle_dataset: "austinreese/craigslist-carstrucks-data"  # source=kaggle (needs kaggle CLI + token)
+  openml_name: ""                        # source=openml: fetch_openml(name=...) (no account needed)
+
+database:
+  backend: sqlite                        # sqlite | postgres (postgres creds come from .env, never here)
+  sqlite_path: data/processed/cars.db
+  table: cars
+  runs_table: runs
+
+column_map:                              # source-dataset column -> canonical name
+  manufacturer: brand
+  odometer: mileage
+
+schema:
+  required_columns: [price, brand, model, year, mileage]
+  optional_columns: [title_status, vin, state, condition, posting_date]
+
+batching:
+  date_column: posting_date
+  freq: W                                # weekly slices
+  min_batch_rows: 100
+
+quality:
+  min_rows: 100
+  null_fraction_max:
+    price: 0.0
+    brand: 0.05
+    model: 0.10
+    year: 0.02
+    mileage: 0.20
+  ranges:
+    price: [1, 1000000]
+    year: [1950, 2027]
+    mileage: [0, 1000000]
+  known_title_status: ["clean", "salvage", "rebuilt", "lien", "missing", "parts only"]
+  duplicate_vin_severity: ERROR
+
+monitoring:
+  drift:
+    psi_bins: 10
+    psi_alert: 0.2
+    null_rate_delta_alert: 0.10
+    category_shift_alert: 0.15
+    psi_columns: [price, mileage, year]
+  freshness:
+    max_staleness_days: 30
+
+split:
+  test_size: 0.2
+
+model:
+  decision_tree:
+    max_depth: 12
+    min_samples_leaf: 5
+  random_forest:
+    n_estimators: 200
+    max_depth: 16
+    min_samples_leaf: 3
