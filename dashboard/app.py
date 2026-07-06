@@ -1,8 +1,9 @@
 """Streamlit monitoring dashboard over the runs table: quality, drift, and model metrics over runs.
 
 The data-shaping helpers (runs history -> plot-ready frames) are pure and unit-tested; the Streamlit
-rendering lives only in main(), which runs as the Streamlit entry point -- importing this module has
-no side effects. The DB connection and column lists come from config (no hardcoded paths).
+rendering lives only in main(). Importing this module has no side effects except the project-root
+sys.path bootstrap below -- the one intended exception, required only so `streamlit run` can find
+`src`. The DB connection and column lists come from config (no hardcoded paths).
 
 Run:  streamlit run dashboard/app.py     (or `make dashboard`)
 """
@@ -10,13 +11,22 @@ Run:  streamlit run dashboard/app.py     (or `make dashboard`)
 from __future__ import annotations
 
 import json
+import sys
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
 
-from src.config import Settings, load_settings
-from src.db import database
-from src.monitoring.runs import load_runs
+# Entry-point bootstrap (the intended exception to this module's no-import-side-effects rule):
+# `streamlit run dashboard/app.py` puts this file's own folder on sys.path, NOT the repo root, so a
+# bare launch can't import `src`. Prepend the project root so every launcher resolves the same way
+# (pytest and `python -m` already have the root on the path; make dashboard and bare streamlit need
+# this). Must run before the src imports below, hence their E402 exemption.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from src.config import Settings, load_settings  # noqa: E402
+from src.db import database  # noqa: E402
+from src.monitoring.runs import load_runs  # noqa: E402
 
 _BATCH = "batch_label"
 _BATCH_FATAL = {"columns", "min_rows"}  # ERROR checks that halt rather than quarantine
