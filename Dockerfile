@@ -11,5 +11,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Default command runs the full pipeline (one batch). Compose overrides for the dashboard.
+# Streamlit dashboard port (served when compose runs the dashboard service).
+EXPOSE 8501
+
+# Default command runs the full pipeline (one batch). Compose overrides for backfill / dashboard.
 CMD ["python", "-m", "src.pipeline"]
