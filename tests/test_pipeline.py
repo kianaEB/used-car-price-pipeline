@@ -159,6 +159,10 @@ def test_backfill_produces_at_least_three_runs(monkeypatch: pytest.MonkeyPatch):
     assert rc == 0
     assert len(runs) >= 3  # a real run history for the dashboard
     assert runs["mae"].notna().all()  # every batch trained on its clean remainder
+    assert runs["n_quarantined"].sum() > 0  # quarantine counts persisted per run
+    assert (
+        runs["drift"].apply(lambda d: "psi" in d).any()
+    )  # drift persisted for the dashboard
 
 
 # ------------------------------------------------------------------------------------- drift

@@ -26,9 +26,13 @@ class RunRecord:
     dq_pass_rate: float  # fraction of checks that passed
     n_error_checks: int
     freshness_days: float  # age of the newest posting_date at run time
+    n_quarantined: int = 0  # ERROR rows dropped by the gate before load/train
     col_stats: dict[str, Any] = field(
         default_factory=dict
     )  # {col: {"mean":..., "null_rate":...}}
+    drift: dict[str, Any] = field(
+        default_factory=dict
+    )  # serialised DriftReport vs the previous run (psi, category_shift, ...)
     mae: float | None = None
     rmse: float | None = None
     r2: float | None = None
@@ -65,10 +69,14 @@ def column_stats(
     return stats
 
 
+_JSON_COLUMNS = ("col_stats", "drift")
+
+
 def save_run(record: RunRecord, engine: Engine, table: str = "runs") -> None:
-    """Append one RunRecord to the runs table (col_stats as JSON), creating the table if absent."""
+    """Append one RunRecord to the runs table (dict fields as JSON), creating the table if absent."""
     row = asdict(record)
-    row["col_stats"] = json.dumps(record.col_stats)
+    for col in _JSON_COLUMNS:
+        row[col] = json.dumps(row[col])
     pd.DataFrame([row]).to_sql(table, engine, if_exists="append", index=False)
 
 
@@ -77,10 +85,11 @@ def load_runs(engine: Engine, table: str = "runs") -> pd.DataFrame:
     if not inspect(engine).has_table(table):
         return pd.DataFrame()
     df = pd.read_sql_table(table, engine)
-    if "col_stats" in df.columns:
-        df["col_stats"] = df["col_stats"].apply(
-            lambda s: json.loads(s) if isinstance(s, str) else {}
-        )
+    for col in _JSON_COLUMNS:
+        if col in df.columns:
+            df[col] = df[col].apply(
+                lambda s: json.loads(s) if isinstance(s, str) else {}
+            )
     if "ts" in df.columns:
         df = df.sort_values("ts").reset_index(drop=True)
     return df
@@ -92,7 +101,9 @@ def _row_to_record(row: pd.Series) -> RunRecord:
     def _opt(value: Any) -> float | None:
         return None if pd.isna(value) else float(value)
 
-    col_stats = row["col_stats"] if isinstance(row["col_stats"], dict) else {}
+    def _dict(value: Any) -> dict[str, Any]:
+        return value if isinstance(value, dict) else {}
+
     return RunRecord(
         run_id=str(row["run_id"]),
         ts=str(row["ts"]),
@@ -101,7 +112,9 @@ def _row_to_record(row: pd.Series) -> RunRecord:
         dq_pass_rate=float(row["dq_pass_rate"]),
         n_error_checks=int(row["n_error_checks"]),
         freshness_days=float(row["freshness_days"]),
-        col_stats=col_stats,
+        n_quarantined=int(row.get("n_quarantined", 0) or 0),
+        col_stats=_dict(row.get("col_stats")),
+        drift=_dict(row.get("drift")),
         mae=_opt(row.get("mae")),
         rmse=_opt(row.get("rmse")),
         r2=_opt(row.get("r2")),

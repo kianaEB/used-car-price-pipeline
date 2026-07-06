@@ -50,7 +50,7 @@ def _engine() -> Iterator[Engine]:
 
 
 def _record(label: str, ts: str, mae: float | None = 1234.5) -> RunRecord:
-    """A fully-populated RunRecord for round-trip tests."""
+    """A fully-populated RunRecord for round-trip tests (incl. n_quarantined and drift)."""
     return RunRecord(
         run_id=f"{label}-{ts}",
         ts=ts,
@@ -59,7 +59,9 @@ def _record(label: str, ts: str, mae: float | None = 1234.5) -> RunRecord:
         dq_pass_rate=0.86,
         n_error_checks=1,
         freshness_days=5.0,
+        n_quarantined=7,
         col_stats={"price": {"mean": 15000.0, "null_rate": 0.0}},
+        drift={"psi": {"price": 0.12}, "alerts": []},
         mae=mae,
     )
 
