@@ -23,6 +23,13 @@ artifacts/
 *.db
 *.joblib
 
+# Test / tooling caches
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.ruff_cache/
+
 # Local Postgres volume (if bind-mounted) / OS
 pgdata/
 .DS_Store
