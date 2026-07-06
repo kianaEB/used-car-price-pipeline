@@ -74,8 +74,10 @@ monitoring:
     null_rate_delta_alert: 0.10
     category_shift_alert: 0.15
     psi_columns: [price, mileage, year]
+    category_columns: [title_status, brand]   # which categoricals to watch for a share shift
   freshness:
     max_staleness_days: 30
+    reference_date: "2024-03-01"              # config-driven "now" (synthetic is anchored 2024-01-01)
 
 split:
   test_size: 0.2

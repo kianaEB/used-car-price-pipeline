@@ -6,12 +6,13 @@ turns a one-shot script into something you can *monitor* -- the core of the triv
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import json
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
 import pandas as pd
-from sqlalchemy import Engine
+from sqlalchemy import Engine, inspect
 
 
 @dataclass
@@ -47,23 +48,74 @@ class RunRecord:
         )
 
 
-def save_run(record: RunRecord, engine: Engine, table: str = "runs") -> None:
-    """Append one RunRecord to the runs table (col_stats serialized as JSON).
+def column_stats(
+    df: pd.DataFrame, columns: list[str]
+) -> dict[str, dict[str, float | None]]:
+    """Per-column {mean, null_rate} for the key columns, for the RunRecord and drift comparisons."""
+    stats: dict[str, dict[str, float | None]] = {}
+    for col in columns:
+        if col not in df.columns:
+            continue
+        values = pd.to_numeric(df[col], errors="coerce")
+        mean = values.mean()
+        stats[col] = {
+            "mean": None if pd.isna(mean) else float(mean),
+            "null_rate": float(df[col].isna().mean()) if len(df) else 0.0,
+        }
+    return stats
 
-    TODO: json.dumps(col_stats); build a one-row DataFrame; df.to_sql(table, engine,
-    if_exists="append", index=False).
-    """
-    raise NotImplementedError
+
+def save_run(record: RunRecord, engine: Engine, table: str = "runs") -> None:
+    """Append one RunRecord to the runs table (col_stats as JSON), creating the table if absent."""
+    row = asdict(record)
+    row["col_stats"] = json.dumps(record.col_stats)
+    pd.DataFrame([row]).to_sql(table, engine, if_exists="append", index=False)
 
 
 def load_runs(engine: Engine, table: str = "runs") -> pd.DataFrame:
-    """Return the full run history as a DataFrame (empty if the table doesn't exist yet).
+    """Return the full run history as a DataFrame (empty if the table doesn't exist yet), ts-sorted."""
+    if not inspect(engine).has_table(table):
+        return pd.DataFrame()
+    df = pd.read_sql_table(table, engine)
+    if "col_stats" in df.columns:
+        df["col_stats"] = df["col_stats"].apply(
+            lambda s: json.loads(s) if isinstance(s, str) else {}
+        )
+    if "ts" in df.columns:
+        df = df.sort_values("ts").reset_index(drop=True)
+    return df
 
-    TODO: read the table; parse col_stats JSON back to dicts; sort by ts ascending.
-    """
-    raise NotImplementedError
+
+def _row_to_record(row: pd.Series) -> RunRecord:
+    """Rebuild a RunRecord from a runs-table row (NaN model metrics -> None)."""
+
+    def _opt(value: Any) -> float | None:
+        return None if pd.isna(value) else float(value)
+
+    col_stats = row["col_stats"] if isinstance(row["col_stats"], dict) else {}
+    return RunRecord(
+        run_id=str(row["run_id"]),
+        ts=str(row["ts"]),
+        batch_label=str(row["batch_label"]),
+        n_rows=int(row["n_rows"]),
+        dq_pass_rate=float(row["dq_pass_rate"]),
+        n_error_checks=int(row["n_error_checks"]),
+        freshness_days=float(row["freshness_days"]),
+        col_stats=col_stats,
+        mae=_opt(row.get("mae")),
+        rmse=_opt(row.get("rmse")),
+        r2=_opt(row.get("r2")),
+    )
+
+
+def latest_run(engine: Engine, table: str = "runs") -> RunRecord | None:
+    """Return the most recent run by timestamp, or None if there is no history yet."""
+    runs = load_runs(engine, table)
+    if runs.empty:
+        return None
+    return _row_to_record(runs.iloc[-1])
 
 
 def previous_run(engine: Engine, table: str = "runs") -> RunRecord | None:
-    """Return the most recent prior run, or None if this is the first run. TODO."""
-    raise NotImplementedError
+    """Return the run to compare the current batch against: the latest one already persisted."""
+    return latest_run(engine, table)
