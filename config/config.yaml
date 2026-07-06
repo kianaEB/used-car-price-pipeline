@@ -79,6 +79,11 @@ monitoring:
     max_staleness_days: 30
     reference_date: "2024-03-01"              # config-driven "now" (synthetic is anchored 2024-01-01)
 
+features:                                # what the model learns from (target separated from features)
+  target: price
+  numeric: [year, mileage]
+  categorical: [brand, model, condition, state]
+
 split:
   test_size: 0.2
 
