@@ -31,6 +31,7 @@ class CheckResult:
     n_rows: int
     detail: str = ""
     sample: list[dict] = field(default_factory=list)
+    offending_index: list[int] = field(default_factory=list)
 
 
 def _sample(offenders: pd.DataFrame | None) -> list[dict]:
@@ -38,6 +39,13 @@ def _sample(offenders: pd.DataFrame | None) -> list[dict]:
     if offenders is None or len(offenders) == 0:
         return []
     return json.loads(offenders.head(5).to_json(orient="records", date_format="iso"))
+
+
+def _offending(offenders: pd.DataFrame | None) -> list[int]:
+    """Row-index labels of ALL offending rows -- the single source of truth for quarantine."""
+    if offenders is None or len(offenders) == 0:
+        return []
+    return [int(i) for i in offenders.index.tolist()]
 
 
 def _result(
@@ -49,9 +57,16 @@ def _result(
     detail: str = "",
     offenders: pd.DataFrame | None = None,
 ) -> CheckResult:
-    """Build a CheckResult, attaching up to 5 offending rows as a debugging sample."""
+    """Build a CheckResult with up to 5 sample rows and the full offending-row index set."""
     return CheckResult(
-        name, passed, severity, int(n_violations), len(df), detail, _sample(offenders)
+        name,
+        passed,
+        severity,
+        int(n_violations),
+        len(df),
+        detail,
+        _sample(offenders),
+        _offending(offenders),
     )
 
 

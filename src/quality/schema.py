@@ -50,7 +50,21 @@ def validate_schema(
         sample = [
             {k: str(v) for k, v in row.items()} for row in fc.head(5).to_dict("records")
         ]
+        # Row-index labels of failing rows so the pipeline can quarantine them (column-level
+        # failures such as a missing column carry no index and are batch-fatal elsewhere).
+        offending = (
+            sorted({int(i) for i in fc["index"].dropna()})
+            if "index" in fc.columns
+            else []
+        )
         return CheckResult(
-            "schema", False, "ERROR", n, len(df), f"{n} schema violation(s)", sample
+            "schema",
+            False,
+            "ERROR",
+            n,
+            len(df),
+            f"{n} schema violation(s)",
+            sample,
+            offending,
         )
     return CheckResult("schema", True, "ERROR", 0, len(df), "pandera schema OK")

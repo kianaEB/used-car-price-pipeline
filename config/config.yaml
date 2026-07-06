@@ -35,6 +35,7 @@ database:
   sqlite_path: data/processed/cars.db
   table: cars
   runs_table: runs
+  quarantine_table: quarantine           # ERROR rows dropped by the gate are audited here
 
 column_map:                              # source-dataset column -> canonical name
   manufacturer: brand
@@ -51,6 +52,9 @@ batching:
 
 quality:
   min_rows: 100
+  max_error_fraction: 0.25               # gate ceiling: > this share of ERROR rows -> hard-halt the
+                                         # batch (well above the ~6% injected rate, so real batches
+                                         # quarantine-and-proceed; an empty/garbage batch halts)
   null_fraction_max:
     price: 0.0
     brand: 0.05
