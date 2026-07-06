@@ -63,6 +63,9 @@ quality:
     mileage: [0, 1000000]
   known_title_status: ["clean", "salvage", "rebuilt", "lien", "missing", "parts only"]
   duplicate_vin_severity: ERROR
+  consistency:                           # cross-field rule: "fresh" condition + very high odometer
+    fresh_conditions: ["new", "like new"]
+    max_fresh_mileage: 60000             # a "like new" car above this mileage is inconsistent (WARN)
 
 monitoring:
   drift:

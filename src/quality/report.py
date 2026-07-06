@@ -10,6 +10,7 @@ pipeline can all gate on data quality. `run_report` is what the pipeline calls d
 from __future__ import annotations
 
 import json
+import logging
 import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -18,7 +19,9 @@ import pandas as pd
 
 from src.config import Settings, load_settings
 from src.ingest.dataset import load_dataset
-from src.quality import checks
+from src.quality import checks, schema
+
+log = logging.getLogger("quality.report")
 
 
 @dataclass
@@ -52,13 +55,38 @@ class DataQualityReport:
 def run_report(df: pd.DataFrame, settings: Settings | None = None) -> DataQualityReport:
     """Run Layer 1 (pandera schema) then Layer 2 (business rules); return a DataQualityReport.
 
-    TODO:
-      - Layer 1: schema.validate_schema(df, settings['quality']['ranges']) -> one CheckResult
-      - Layer 2 (from checks.py): check_min_rows, check_nulls, check_duplicates,
-        check_categories(title_status, known set), check_consistency -> CheckResults
-      - collect everything into DataQualityReport(results=[...]) in a stable order
+    Layer 1 is the holistic technical gate; Layer 2 adds itemised, actionable rules (per-field
+    ranges, per-column null policy, duplicates, category membership, cross-field consistency).
+    Some Layer-2 rules deliberately overlap Layer 1 -- defence in depth plus readable detail.
     """
-    raise NotImplementedError
+    settings = settings if settings is not None else load_settings()
+    quality = settings["quality"]
+    ranges = quality["ranges"]
+    consistency = quality.get("consistency", {})
+    results = [
+        schema.validate_schema(df, ranges),  # Layer 1: pandera technical schema
+        checks.check_min_rows(df, quality["min_rows"]),
+        checks.check_nulls(df, quality["null_fraction_max"]),
+        checks.check_ranges(df, ranges),
+        checks.check_duplicates(df, quality.get("duplicate_vin_severity", "ERROR")),
+        checks.check_categories(df, "title_status", quality["known_title_status"]),
+        checks.check_consistency(
+            df,
+            consistency.get("fresh_conditions", []),
+            consistency.get("max_fresh_mileage", float("inf")),
+        ),
+    ]
+    report = DataQualityReport(results=results)
+    n_passed = sum(r.passed for r in results)
+    n_warn = sum(1 for r in results if r.severity == "WARN" and not r.passed)
+    log.info(
+        "DQ report: %d/%d checks passed, %d error(s), %d warn(s)",
+        n_passed,
+        len(results),
+        len(report.errors),
+        n_warn,
+    )
+    return report
 
 
 def main() -> int:
