@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from dataclasses import asdict
 
 import pandas as pd
 from sqlalchemy import Engine
@@ -103,6 +104,7 @@ def run_batch(
 
     # Quarantine: drop exactly the DQ-flagged ERROR rows, audit them, proceed on the remainder.
     clean_df = df.drop(index=list(error_rows)).reset_index(drop=True)
+    record.n_quarantined = len(error_rows)
     if error_rows:
         log.warning(
             "[%s] quarantined %d ERROR row(s) (%.1f%%); proceeding on %d clean rows",
@@ -120,11 +122,12 @@ def run_batch(
         clean_df, settings["monitoring"]["drift"]["psi_columns"]
     )
 
-    # 4. Drift vs the previous cleaned batch (a signal, never a gate).
+    # 4. Drift vs the previous cleaned batch (a signal, never a gate); persist it for the dashboard.
     if previous_clean is not None:
         drift_report = drift_mod.compute_drift(
             previous_clean, clean_df, settings["monitoring"]
         )
+        record.drift = asdict(drift_report)
         for alert in drift_report.alerts:
             log.warning("[%s] DRIFT: %s", batch_label, alert)
 
