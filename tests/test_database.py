@@ -1,4 +1,5 @@
 """Tests for SQL write/read round-trip (use a temporary SQLite file, not the real DB)."""
+
 from __future__ import annotations
 
 import pytest

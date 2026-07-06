@@ -8,6 +8,7 @@ Two checks below (`check_schema`, `check_min_rows`) are fully implemented to est
 pattern; the rest are stubs with a clear contract. Every check must have a matching test in
 `tests/test_quality_checks.py` proving it passes on clean data and fails on the right defect.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -44,20 +45,31 @@ def _result(
     sample: list[dict] = []
     if offenders is not None and len(offenders) > 0:
         sample = offenders.head(5).to_dict(orient="records")
-    return CheckResult(name, passed, severity, int(n_violations), len(df), detail, sample)
+    return CheckResult(
+        name, passed, severity, int(n_violations), len(df), detail, sample
+    )
 
 
 def check_schema(df: pd.DataFrame, required_columns: list[str]) -> CheckResult:
     """ERROR if any required column is missing. TODO: also verify dtype coercibility."""
     missing = [c for c in required_columns if c not in df.columns]
-    detail = f"missing columns: {missing}" if missing else "all required columns present"
+    detail = (
+        f"missing columns: {missing}" if missing else "all required columns present"
+    )
     return _result("schema", not missing, "ERROR", len(missing), df, detail=detail)
 
 
 def check_min_rows(df: pd.DataFrame, min_rows: int) -> CheckResult:
     """ERROR if the dataset has fewer than `min_rows` rows (truncated/empty ingest)."""
     ok = len(df) >= min_rows
-    return _result("min_rows", ok, "ERROR", 0 if ok else 1, df, detail=f"{len(df)} rows (min {min_rows})")
+    return _result(
+        "min_rows",
+        ok,
+        "ERROR",
+        0 if ok else 1,
+        df,
+        detail=f"{len(df)} rows (min {min_rows})",
+    )
 
 
 def check_nulls(df: pd.DataFrame, null_fraction_max: dict[str, float]) -> CheckResult:

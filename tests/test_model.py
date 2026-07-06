@@ -1,4 +1,5 @@
 """Tests for metric scoring and (once implemented) that the model beats the mean baseline."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -19,7 +20,9 @@ def test_score_has_all_metrics():
     assert set(m) == {"mae", "rmse", "r2", "mape"}
 
 
-@pytest.mark.skip(reason="TODO: implement preprocess+train+evaluate, then assert winner beats baseline")
+@pytest.mark.skip(
+    reason="TODO: implement preprocess+train+evaluate, then assert winner beats baseline"
+)
 def test_best_model_beats_mean_baseline():
     """Build a split from synthetic data, train, evaluate, assert best MAE < mean_baseline MAE."""
     ...

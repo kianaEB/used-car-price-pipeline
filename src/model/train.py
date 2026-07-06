@@ -3,6 +3,7 @@
 Regression only -- never a classifier (that was the prototype's core bug). Every model is compared
 against a mean baseline so the reported metric is honest.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -18,8 +19,12 @@ def build_models(cfg: dict[str, Any], seed: int = 42) -> dict[str, Any]:
     return {
         "mean_baseline": DummyRegressor(strategy="mean"),
         "linear_regression": LinearRegression(),
-        "decision_tree": DecisionTreeRegressor(random_state=seed, **cfg.get("decision_tree", {})),
-        "random_forest": RandomForestRegressor(random_state=seed, **cfg.get("random_forest", {})),
+        "decision_tree": DecisionTreeRegressor(
+            random_state=seed, **cfg.get("decision_tree", {})
+        ),
+        "random_forest": RandomForestRegressor(
+            random_state=seed, **cfg.get("random_forest", {})
+        ),
     }
 
 

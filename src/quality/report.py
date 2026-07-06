@@ -6,6 +6,7 @@ CLI:  python -m src.quality.report      # validates the configured raw file; exi
 The exit code is non-zero if any ERROR-severity check fails, so `make validate`, CI, and the
 pipeline can all gate on data quality. `run_report` is what the pipeline calls directly.
 """
+
 from __future__ import annotations
 
 import json
@@ -17,7 +18,7 @@ import pandas as pd
 
 from src.config import Settings, load_settings
 from src.ingest.dataset import load_dataset
-from src.quality import checks, schema
+from src.quality import checks
 
 
 @dataclass

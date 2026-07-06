@@ -8,6 +8,7 @@ NOT part of `make all`, tests, or CI (see SPEC 3). Off by default. If you implem
 Left as a documented stub on purpose -- do NOT make the pipeline depend on live scraping.
 (The prototype's brittle, unthrottled scraping is one of the things we're moving away from.)
 """
+
 from __future__ import annotations
 
 import pandas as pd

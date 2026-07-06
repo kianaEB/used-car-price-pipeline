@@ -2,6 +2,7 @@
 
 Skipped automatically if pandera isn't installed, so the offline test subset stays green.
 """
+
 from __future__ import annotations
 
 import pytest

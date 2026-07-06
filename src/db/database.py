@@ -5,6 +5,7 @@ Only *validated* data should be written here -- the data-quality gate runs first
 CLI:
     python -m src.db.database --load
 """
+
 from __future__ import annotations
 
 import argparse
@@ -38,7 +39,9 @@ def _cli() -> None:
     parser = argparse.ArgumentParser(description="Load processed data into SQL.")
     parser.add_argument("--load", action="store_true")
     parser.parse_args()
-    raise NotImplementedError("Wire to the processed dataset -- orchestrated by pipeline.py")
+    raise NotImplementedError(
+        "Wire to the processed dataset -- orchestrated by pipeline.py"
+    )
 
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
 """Tests for leakage-safe, deterministic preprocessing."""
+
 from __future__ import annotations
 
 import pytest

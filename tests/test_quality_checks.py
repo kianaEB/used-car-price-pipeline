@@ -3,6 +3,7 @@
 The implemented checks (schema, min_rows) have live tests. The rest are skipped with a TODO
 reason pointing at the SPEC -- turn each skip into a real test as you implement the check.
 """
+
 from __future__ import annotations
 
 import pytest

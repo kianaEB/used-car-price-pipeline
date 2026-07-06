@@ -7,6 +7,7 @@ optional (see src/ingest/download.py and `make data-real`).
 CLI:
     python -m src.ingest.dataset --synthetic --out data/raw/sample.csv
 """
+
 from __future__ import annotations
 
 import argparse
@@ -15,7 +16,14 @@ from pathlib import Path
 import pandas as pd
 
 CANONICAL_COLUMNS = [
-    "price", "brand", "model", "year", "mileage", "title_status", "vin", "posting_date",
+    "price",
+    "brand",
+    "model",
+    "year",
+    "mileage",
+    "title_status",
+    "vin",
+    "posting_date",
 ]
 
 
@@ -48,7 +56,9 @@ def load_dataset(path, column_map: dict | None = None) -> pd.DataFrame:
     raise NotImplementedError
 
 
-def generate_synthetic(n=8000, seed=42, bad_fraction=0.06, n_weeks=8, drift=None) -> pd.DataFrame:
+def generate_synthetic(
+    n=8000, seed=42, bad_fraction=0.06, n_weeks=8, drift=None
+) -> pd.DataFrame:
     """Return a realistic, MESSY synthetic used-car dataset with KNOWN ground truth.
 
     Why synthetic-by-default: it makes the whole project self-contained (no download / account),
@@ -82,8 +92,12 @@ def iter_batches(df, batching: dict):
 
 
 def _cli() -> None:
-    parser = argparse.ArgumentParser(description="Generate a synthetic used-car sample CSV.")
-    parser.add_argument("--synthetic", action="store_true", help="generate synthetic data")
+    parser = argparse.ArgumentParser(
+        description="Generate a synthetic used-car sample CSV."
+    )
+    parser.add_argument(
+        "--synthetic", action="store_true", help="generate synthetic data"
+    )
     parser.add_argument("--n", type=int, default=2000)
     parser.add_argument("--out", type=str, required=True)
     args = parser.parse_args()
