@@ -6,6 +6,7 @@ signal (logged, not fatal).
 
 Run:  python -m src.pipeline [--backfill]
 """
+
 from __future__ import annotations
 
 import argparse
@@ -21,7 +22,9 @@ from src.model import train as train_mod
 from src.monitoring import runs as runs_mod
 from src.quality import report as report_mod
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+)
 log = logging.getLogger("pipeline")
 
 
@@ -39,14 +42,18 @@ def run_batch(df, batch_label: str, settings: Settings) -> int:
     record.dq_pass_rate = sum(r.passed for r in dq.results) / max(len(dq.results), 1)
     record.n_error_checks = len(dq.errors)
     if not dq.passed:
-        log.error("[%s] data-quality gate FAILED; recording run and halting", batch_label)
+        log.error(
+            "[%s] data-quality gate FAILED; recording run and halting", batch_label
+        )
         runs_mod.save_run(record, engine, runs_table)
         return 1
 
     # 2. Drift vs the previous run (a signal, not a gate)
     prev = runs_mod.previous_run(engine, runs_table)
     if prev is not None:
-        log.info("[%s] previous run found; compute drift (see monitoring.drift)", batch_label)
+        log.info(
+            "[%s] previous run found; compute drift (see monitoring.drift)", batch_label
+        )
         # TODO: load the previous batch key columns and call drift.compute_drift(...); log alerts.
 
     # 3. Load validated data to SQL
@@ -54,7 +61,9 @@ def run_batch(df, batch_label: str, settings: Settings) -> int:
 
     # 4. Features -> 5. Train -> 6. Evaluate
     split = preprocess.split_and_encode(
-        preprocess.clean(df), test_size=settings["split"]["test_size"], seed=settings.seed
+        preprocess.clean(df),
+        test_size=settings["split"]["test_size"],
+        seed=settings.seed,
     )
     models = train_mod.train(split, settings["model"], seed=settings.seed)
     evaluate_mod.evaluate(models, split, settings["paths"]["metrics"])
@@ -83,7 +92,9 @@ def run(backfill: bool = False) -> int:
 
 def _cli() -> int:
     parser = argparse.ArgumentParser(description="Run the used-car data pipeline.")
-    parser.add_argument("--backfill", action="store_true", help="replay all time-ordered batches")
+    parser.add_argument(
+        "--backfill", action="store_true", help="replay all time-ordered batches"
+    )
     args = parser.parse_args()
     return run(backfill=args.backfill)
 

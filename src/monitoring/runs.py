@@ -3,6 +3,7 @@
 The dashboard reads this table to plot quality, drift, and model metrics over time. This is what
 turns a one-shot script into something you can *monitor* -- the core of the trivago-style story.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -24,7 +25,9 @@ class RunRecord:
     dq_pass_rate: float  # fraction of checks that passed
     n_error_checks: int
     freshness_days: float  # age of the newest posting_date at run time
-    col_stats: dict[str, Any] = field(default_factory=dict)  # {col: {"mean":..., "null_rate":...}}
+    col_stats: dict[str, Any] = field(
+        default_factory=dict
+    )  # {col: {"mean":..., "null_rate":...}}
     mae: float | None = None
     rmse: float | None = None
     r2: float | None = None

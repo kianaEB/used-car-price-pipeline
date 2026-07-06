@@ -3,6 +3,7 @@
 Encoders/scalers are fit on TRAIN ONLY, then applied to test. This is a correctness fix over the
 prototype, which encoded across the whole dataset (and even mixed in the user's input row).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

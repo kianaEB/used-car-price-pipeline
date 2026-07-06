@@ -3,9 +3,9 @@
 Metrics: MAE, RMSE, R2, MAPE. The winner must beat the mean baseline -- or the README says so
 plainly. `score()` is implemented (and unit-tested); `evaluate()` wires it to the models.
 """
+
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
@@ -28,7 +28,9 @@ def score(y_true: Any, y_pred: Any) -> dict[str, float]:
     }
 
 
-def evaluate(models: dict[str, Any], split: Any, out_path: str | Path) -> dict[str, dict]:
+def evaluate(
+    models: dict[str, Any], split: Any, out_path: str | Path
+) -> dict[str, dict]:
     """Score every fitted model on the test split, save metrics.json, and return the dict.
 
     TODO: predict on split.X_test; call score() per model; assemble {name: metrics}; write JSON

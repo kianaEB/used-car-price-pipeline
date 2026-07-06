@@ -3,6 +3,7 @@
 No other module reads YAML or os.environ directly -- they import `load_settings()`. This is the fix
 for the prototype's hardcoded DB password: credentials live in the environment, never in source.
 """
+
 from __future__ import annotations
 
 import os

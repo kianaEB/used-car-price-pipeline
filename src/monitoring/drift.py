@@ -4,6 +4,7 @@
 distributions, large for a known shift. The higher-level `compute_drift` orchestration is a stub
 with a clear contract. Drift is a *signal*, not a hard gate (the DQ ERROR gate is the hard stop).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -52,7 +53,9 @@ def psi(expected: np.ndarray, actual: np.ndarray, bins: int = 10) -> float:
     return float(np.sum((a_pct - e_pct) * np.log(a_pct / e_pct)))
 
 
-def compute_drift(previous: pd.DataFrame, current: pd.DataFrame, cfg: dict) -> DriftReport:
+def compute_drift(
+    previous: pd.DataFrame, current: pd.DataFrame, cfg: dict
+) -> DriftReport:
     """Compare previous vs current batch: PSI (numeric), null-rate, category shift, freshness.
 
     TODO: for each column in cfg['psi_columns'] compute psi() and alert if > cfg['psi_alert'];

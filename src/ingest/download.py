@@ -7,6 +7,7 @@ makes the whole project run offline with no accounts. Dispatches on config `data
   - kaggle : `kaggle datasets download` (needs the kaggle CLI + token) -- stub
   - openml : sklearn.datasets.fetch_openml (no account) -- stub
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -39,7 +40,9 @@ def download_url(url: str, dest: Path, sha256: str | None = None) -> Path:
     if sha256:
         got = _sha256(dest)
         if got != sha256:
-            raise ValueError(f"checksum mismatch for {dest}: expected {sha256}, got {got}")
+            raise ValueError(
+                f"checksum mismatch for {dest}: expected {sha256}, got {got}"
+            )
     return dest
 
 
@@ -64,7 +67,9 @@ def main() -> int:
     raw_file = Path(s["paths"]["raw_file"])
 
     if source == "synthetic":
-        print("dataset.source=synthetic -- nothing to download; `make all` already works offline.")
+        print(
+            "dataset.source=synthetic -- nothing to download; `make all` already works offline."
+        )
         return 0
     if source == "url":
         if not ds.get("url"):

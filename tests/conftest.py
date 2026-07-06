@@ -1,4 +1,5 @@
 """Shared pytest fixtures: a clean dataset and a deliberately 'dirty' one with known defects."""
+
 from __future__ import annotations
 
 import pandas as pd
@@ -25,8 +26,8 @@ def clean_df() -> pd.DataFrame:
 def dirty_df(clean_df: pd.DataFrame) -> pd.DataFrame:
     """The clean frame with injected defects, one per DQ check."""
     df = clean_df.copy()
-    df.loc[0, "price"] = -5000.0   # negative price   -> check_ranges (ERROR)
-    df.loc[1, "year"] = 1200       # impossible year  -> check_ranges (ERROR)
-    df.loc[2, "brand"] = None      # null brand       -> check_nulls
-    df.loc[3, "vin"] = "V1"        # duplicate VIN     -> check_duplicates
+    df.loc[0, "price"] = -5000.0  # negative price   -> check_ranges (ERROR)
+    df.loc[1, "year"] = 1200  # impossible year  -> check_ranges (ERROR)
+    df.loc[2, "brand"] = None  # null brand       -> check_nulls
+    df.loc[3, "vin"] = "V1"  # duplicate VIN     -> check_duplicates
     return df
