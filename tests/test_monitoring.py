@@ -230,6 +230,28 @@ def test_compute_drift_no_alert_on_identical_data():
     assert report.psi["price"] < 1e-6
 
 
+def test_price_shock_trips_psi_once_across_consecutive_weeks():
+    """The injected one-time price shock trips PSI at exactly one consecutive-week transition."""
+    drift = {  # isolate the shock: gradual inflation stays below the alert, no other signals
+        "price_inflation_per_week": 0.015,
+        "price_shock_week": 4,
+        "price_shock_multiplier": 1.5,
+    }
+    df = generate_synthetic(n=8000, seed=42, bad_fraction=0.0, n_weeks=8, drift=drift)
+    batches = [batch for _, batch in iter_batches(df, _weekly())]
+    cfg = _monitoring_cfg()
+    alert = cfg["drift"]["psi_alert"]
+    price_psi = [
+        compute_drift(prev, curr, cfg).psi["price"]
+        for prev, curr in zip(batches, batches[1:])
+    ]
+    tripped = [value > alert for value in price_psi]
+    assert sum(tripped) == 1  # exactly one transition trips PSI...
+    assert tripped[
+        3
+    ]  # ...the W04->W05 shock (4th consecutive pair); gradual weeks stay below
+
+
 def test_compute_drift_flags_a_stale_batch():
     """An early (old) batch trips the freshness alert even when its distribution hasn't drifted."""
     df = generate_synthetic(n=4000, seed=42, bad_fraction=0.0, n_weeks=8)

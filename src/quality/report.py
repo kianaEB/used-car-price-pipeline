@@ -64,6 +64,9 @@ def run_report(df: pd.DataFrame, settings: Settings | None = None) -> DataQualit
     ranges = quality["ranges"]
     consistency = quality.get("consistency", {})
     results = [
+        checks.check_schema(
+            df, settings["schema"]["required_columns"]
+        ),  # columns present
         schema.validate_schema(df, ranges),  # Layer 1: pandera technical schema
         checks.check_min_rows(df, quality["min_rows"]),
         checks.check_nulls(df, quality["null_fraction_max"]),

@@ -21,9 +21,13 @@ dataset:
   n_weeks: 8                             # weekly batches, so monitoring/drift have real history
   bad_fraction: 0.06                     # injected defect rate = ground truth for the DQ catch-rate
   drift:                                 # controlled drift injected across weeks (alerts become demonstrable)
-    price_inflation_per_week: 0.015      # prices trend up over time (numeric drift -> PSI)
+    price_inflation_per_week: 0.015      # gradual: prices trend up week to week (stays below PSI alert)
     rising_null_column: mileage          # this column's null-rate climbs over the weeks
     new_brand_week: 5                    # a new brand appears mid-stream (category shift)
+    price_shock_week: 4                  # INJECTED SCENARIO (clearly labelled): a one-time, permanent
+    price_shock_multiplier: 1.5          # +50% price jump at this week (e.g. a pricing-source change),
+                                         # so PSI trips ONCE at the W04->W05 transition -- distinct
+                                         # from the gradual price_inflation_per_week baseline above
   # --- optional real dataset (used by `make data-real`) ---
   url: ""                                # source=url: a direct CSV link; cached + checksum-verified
   sha256: ""                             # optional integrity check for source=url
@@ -35,6 +39,7 @@ database:
   sqlite_path: data/processed/cars.db
   table: cars
   runs_table: runs
+  quarantine_table: quarantine           # ERROR rows dropped by the gate are audited here
 
 column_map:                              # source-dataset column -> canonical name
   manufacturer: brand
@@ -51,6 +56,9 @@ batching:
 
 quality:
   min_rows: 100
+  max_error_fraction: 0.25               # gate ceiling: > this share of ERROR rows -> hard-halt the
+                                         # batch (well above the ~6% injected rate, so real batches
+                                         # quarantine-and-proceed; an empty/garbage batch halts)
   null_fraction_max:
     price: 0.0
     brand: 0.05

@@ -170,3 +170,14 @@ def test_offender_sample_is_json_serializable(dirty_df):
     dumped = json.dumps(asdict(r))
     assert isinstance(r.sample, list) and r.sample
     assert json.loads(dumped)["name"] == "ranges"
+
+
+def test_offending_index_pinpoints_the_bad_rows(dirty_df):
+    """offending_index is the single source of truth the pipeline quarantines on."""
+    ranges = checks.check_ranges(dirty_df, RANGES)
+    assert set(ranges.offending_index) == {
+        0,
+        1,
+    }  # negative price (row 0), impossible year (row 1)
+    dupes = checks.check_duplicates(dirty_df)
+    assert set(dupes.offending_index) == {0, 3}  # both rows sharing VIN "V1"

@@ -23,3 +23,11 @@ def test_schema_flags_out_of_range(dirty_df):
     assert not r.passed
     assert r.severity == "ERROR"
     assert r.n_violations >= 1
+
+
+def test_schema_offending_index_marks_failing_rows(dirty_df):
+    r = validate_schema(dirty_df, RANGES)
+    # negative price (row 0), impossible year (row 1), null brand (row 2); the VIN dup (row 3) is
+    # not a schema concern.
+    assert {0, 1, 2} <= set(r.offending_index)
+    assert 3 not in r.offending_index
