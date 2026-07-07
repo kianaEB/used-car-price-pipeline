@@ -144,7 +144,18 @@ distributions are otherwise stable, so PSI/category alerts stay quiet — the *c
 (a one-time price shock → a single PSI trip, a new brand → category shift, a rising null-rate) lives
 in the default **synthetic** mode.
 
-![Streamlit dashboard — DQ pass-rate, PSI, quarantine counts, freshness, and model error over runs](docs/dashboard.png)
+Dashboard on the **real Craigslist run** (6 weekly batches, `2021-W13 → 2021-W18`):
+
+![Streamlit dashboard — model error (MAE / RMSE) across the 6 real Craigslist batches](docs/dashboard_drift.png)
+
+*Model error (MAE / RMSE) per run — the real Craigslist backfill.*
+
+![Streamlit dashboard — PSI per run on the real data, every value under the 0.2 alert threshold](docs/dashboard_quality.png)
+
+*PSI per run — the real Craigslist backfill. Every value stays **under the 0.2 alert threshold**:
+real ~30-day distributions barely move week to week, which is exactly why the **controlled-drift
+demo** (a one-time price shock → a single PSI trip, a new brand → category shift) lives in the
+default **synthetic** mode.*
 
 ## Project layout
 
