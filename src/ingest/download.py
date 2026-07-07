@@ -11,6 +11,7 @@ makes the whole project run offline with no accounts. Dispatches on config `data
 from __future__ import annotations
 
 import hashlib
+import subprocess
 import sys
 from pathlib import Path
 
@@ -47,11 +48,29 @@ def download_url(url: str, dest: Path, sha256: str | None = None) -> Path:
 
 
 def download_kaggle(dataset: str, dest_dir: Path) -> Path:
-    """Fetch via the kaggle CLI: `kaggle datasets download -d <dataset> -p <dir> --unzip`.
+    """Fetch via the kaggle CLI (`kaggle datasets download -d <dataset> -p <dir> --unzip`).
 
-    TODO: shell out to the kaggle CLI (needs ~/.kaggle/kaggle.json); return the extracted CSV path.
+    Needs the kaggle CLI on PATH + ~/.kaggle/kaggle.json. Returns the largest extracted CSV (the
+    dataset itself, not a stray sample/license file).
     """
-    raise NotImplementedError
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        [
+            "kaggle",
+            "datasets",
+            "download",
+            "-d",
+            dataset,
+            "-p",
+            str(dest_dir),
+            "--unzip",
+        ],
+        check=True,
+    )
+    csvs = list(dest_dir.glob("*.csv"))
+    if not csvs:
+        raise FileNotFoundError(f"no CSV extracted from {dataset!r} into {dest_dir}")
+    return max(csvs, key=lambda p: p.stat().st_size)
 
 
 def download_openml(name: str, dest: Path) -> Path:

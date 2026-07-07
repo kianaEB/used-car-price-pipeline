@@ -7,6 +7,7 @@ for the prototype's hardcoded DB password: credentials live in the environment, 
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,17 @@ CONFIG_PATH = PROJECT_ROOT / "config" / "config.yaml"
 
 # Top-level config sections the rest of the pipeline relies on; missing ones fail fast.
 _REQUIRED_SECTIONS = ("paths", "database")
+
+# Optional env overrides for a real-dataset run (env var -> nested config path + type cast). The
+# committed config stays synthetic/offline; these let a real run opt in without editing config.yaml,
+# mirroring the DB_BACKEND pattern. Dataset-specific because reference date, batching freq, and the
+# error ceiling all differ from synthetic (real Craigslist data is ~40% quarantinable).
+_ENV_OVERRIDES: dict[str, tuple[tuple[str, ...], Callable[[str], Any]]] = {
+    "DATASET_SOURCE": (("dataset", "source"), str),
+    "FRESHNESS_REFERENCE_DATE": (("monitoring", "freshness", "reference_date"), str),
+    "BATCHING_FREQ": (("batching", "freq"), str),
+    "QUALITY_MAX_ERROR_FRACTION": (("quality", "max_error_fraction"), float),
+}
 
 
 @dataclass
@@ -39,6 +51,16 @@ class Settings:
         """Resolve a configured path (from the 'paths' block) to an absolute, root-anchored Path."""
         value = Path(self.raw["paths"][name])
         return value if value.is_absolute() else (self.project_root / value)
+
+
+def _apply_env_overrides(cfg: dict[str, Any]) -> None:
+    """Override dataset-specific keys from env for a real run (synthetic stays the committed default)."""
+    for var, (keys, cast) in _ENV_OVERRIDES.items():
+        if var in os.environ:
+            node = cfg
+            for key in keys[:-1]:
+                node = node.setdefault(key, {})
+            node[keys[-1]] = cast(os.environ[var])
 
 
 def _validate_config(cfg: dict[str, Any], config_path: Path) -> None:
@@ -80,6 +102,7 @@ def load_settings(config_path: Path = CONFIG_PATH) -> Settings:
     cfg = yaml.safe_load(config_path.read_text())
     if not isinstance(cfg, dict):
         raise ValueError(f"Config at {config_path} did not parse to a mapping")
+    _apply_env_overrides(cfg)
     _validate_config(cfg, config_path)
     return Settings(
         raw=cfg,

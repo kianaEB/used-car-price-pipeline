@@ -53,6 +53,29 @@ def test_defaults_use_sqlite(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.db_url.startswith("sqlite:///")
 
 
+def test_committed_config_defaults_to_offline_synthetic(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With no env overrides, the source stays synthetic so CI / make all run offline."""
+    for key in ("DATASET_SOURCE", "FRESHNESS_REFERENCE_DATE", "BATCHING_FREQ"):
+        monkeypatch.delenv(key, raising=False)
+    settings = load_settings()
+    assert settings["dataset"]["source"] == "synthetic"
+
+
+def test_env_overrides_wire_a_real_dataset_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A real run opts in via env (source, reference date, freq, error ceiling) without config edits."""
+    monkeypatch.setenv("DATASET_SOURCE", "kaggle")
+    monkeypatch.setenv("FRESHNESS_REFERENCE_DATE", "2021-05-04")
+    monkeypatch.setenv("BATCHING_FREQ", "D")
+    monkeypatch.setenv("QUALITY_MAX_ERROR_FRACTION", "0.6")
+    settings = load_settings()
+    assert settings["dataset"]["source"] == "kaggle"
+    assert settings["monitoring"]["freshness"]["reference_date"] == "2021-05-04"
+    assert settings["batching"]["freq"] == "D"
+    assert settings["quality"]["max_error_fraction"] == 0.6  # cast from string to float
+
+
 def test_getitem_passthrough() -> None:
     """Settings indexes straight into the raw config for nested sections."""
     settings = load_settings()
