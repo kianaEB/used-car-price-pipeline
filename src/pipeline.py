@@ -141,6 +141,7 @@ def run_batch(
         preprocess.clean(clean_df, settings),
         test_size=settings["split"]["test_size"],
         seed=settings.seed,
+        max_categories=settings["features"].get("max_categories"),
     )
     models = train_mod.train(
         split,

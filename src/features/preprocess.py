@@ -57,16 +57,29 @@ def clean(df: pd.DataFrame, settings: Settings | None = None) -> pd.DataFrame:
 
 
 def _build_preprocessor(
-    numeric_cols: list[str], categorical_cols: list[str]
+    numeric_cols: list[str],
+    categorical_cols: list[str],
+    max_categories: int | None = None,
 ) -> ColumnTransformer:
-    """A ColumnTransformer: median-impute + scale numerics, constant-impute + one-hot categoricals."""
+    """A ColumnTransformer: median-impute + scale numerics, constant-impute + one-hot categoricals.
+
+    `max_categories` caps one-hot width by bucketing rare categories as 'infrequent' -- essential for
+    real high-cardinality fields (e.g. free-text model); None keeps every category (synthetic).
+    """
     numeric = Pipeline(
         [("impute", SimpleImputer(strategy="median")), ("scale", StandardScaler())]
     )
     categorical = Pipeline(
         [
             ("impute", SimpleImputer(strategy="constant", fill_value="__missing__")),
-            ("ohe", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
+            (
+                "ohe",
+                OneHotEncoder(
+                    handle_unknown="ignore",
+                    sparse_output=False,
+                    max_categories=max_categories,
+                ),
+            ),
         ]
     )
     transformers = []
@@ -78,7 +91,11 @@ def _build_preprocessor(
 
 
 def split_and_encode(
-    df: pd.DataFrame, target: str = "price", test_size: float = 0.2, seed: int = 42
+    df: pd.DataFrame,
+    target: str = "price",
+    test_size: float = 0.2,
+    seed: int = 42,
+    max_categories: int | None = None,
 ) -> SplitData:
     """Train/test split, then fit encoders/scalers on TRAIN ONLY and transform both (no leakage).
 
@@ -94,7 +111,7 @@ def split_and_encode(
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=test_size, random_state=seed
     )
-    preprocessor = _build_preprocessor(numeric_cols, categorical_cols)
+    preprocessor = _build_preprocessor(numeric_cols, categorical_cols, max_categories)
     X_train_enc = preprocessor.fit_transform(X_train)  # FIT ON TRAIN ONLY
     X_test_enc = preprocessor.transform(
         X_test

@@ -116,7 +116,11 @@ def load_dataset(
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
     if "posting_date" in df.columns:
-        df["posting_date"] = pd.to_datetime(df["posting_date"], errors="coerce")
+        # Real feeds mix timezone offsets per row; normalise to UTC then drop tz so the rest of the
+        # pipeline (batching, freshness vs a naive reference date) stays tz-consistent with synthetic.
+        df["posting_date"] = pd.to_datetime(
+            df["posting_date"], errors="coerce", utc=True
+        ).dt.tz_localize(None)
     return df
 
 

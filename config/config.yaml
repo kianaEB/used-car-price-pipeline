@@ -91,6 +91,8 @@ features:                                # what the model learns from (target se
   target: price
   numeric: [year, mileage]
   categorical: [brand, model, condition, state]
+  max_categories: 40                     # cap one-hot cardinality (real 'model' ~30k values);
+                                         # no-op for synthetic (all categoricals < 40)
 
 split:
   test_size: 0.2
