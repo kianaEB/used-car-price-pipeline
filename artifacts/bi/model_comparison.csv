@@ -1,0 +1,17 @@
+model,metric,value,is_winner,beats_baseline
+mean_baseline,mae,10206.538525161965,False,True
+mean_baseline,rmse,14173.737786537755,False,True
+mean_baseline,r2,-2.8539460802612382e-05,False,True
+mean_baseline,mape,51.47670586599606,False,True
+linear_regression,mae,7274.1660708861855,False,True
+linear_regression,rmse,11388.48886717669,False,True
+linear_regression,r2,0.35438173352246516,False,True
+linear_regression,mape,61.38016999819385,False,True
+decision_tree,mae,6492.403925218152,False,True
+decision_tree,rmse,10954.324212681313,False,True
+decision_tree,r2,0.4026693671418784,False,True
+decision_tree,mape,49.14128101625152,False,True
+random_forest,mae,5833.060165818853,True,True
+random_forest,rmse,9736.300217227232,True,True
+random_forest,r2,0.5281200552847859,True,True
+random_forest,mape,53.05985606450783,True,True

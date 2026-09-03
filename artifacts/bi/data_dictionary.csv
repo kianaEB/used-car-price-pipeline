@@ -1,0 +1,50 @@
+table,column,source,grain,denominator,definition
+runs,run_id,runs.run_id,one row per pipeline run,,Unique run key: batch label plus the run's UTC timestamp.
+runs,run_seq,derived,one row per pipeline run,,"Position of the run in timestamp order, 1..n. Use as Power BI's Sort-by column for batch_label, which sorts alphabetically otherwise."
+runs,ts,runs.ts,one row per pipeline run,,UTC ISO-8601 timestamp at which the run started.
+runs,batch_label,runs.batch_label,one row per pipeline run,,Human label for the time slice (e.g. 2021-W13). NOT guaranteed unique -- see is_latest_for_batch.
+runs,is_latest_for_batch,derived,one row per pipeline run,,True for the newest run carrying this batch_label. Filter batch-keyed visuals on this so a re-run cannot double-count.
+runs,n_rows,runs.n_rows,one row per pipeline run,,"Rows ingested in the batch, BEFORE quarantine. The denominator of both row-level rates."
+runs,n_quarantined,runs.n_quarantined,one row per pipeline run,,Rows the DQ gate flagged as ERROR and dropped before database load and training.
+runs,n_validated,derived,one row per pipeline run,,n_rows minus n_quarantined: the rows actually loaded and modelled.
+runs,quarantine_rate,derived,one row per pipeline run,rows ingested (n_rows),"ROW-level share of ingested rows quarantined. Not comparable with dq_check_pass_rate, which counts checks."
+runs,row_pass_rate,derived,one row per pipeline run,rows ingested (n_rows),ROW-level share of ingested rows that survived the gate. Equals 1 - quarantine_rate.
+runs,dq_check_pass_rate,runs.dq_pass_rate,one row per pipeline run,data-quality checks run,CHECK-level share of DQ checks that passed. It does not describe rows and is NOT 1 - quarantine_rate; label any card with its denominator.
+runs,n_failed_error_checks,runs.n_error_checks,one row per pipeline run,,Count of ERROR-severity checks that FAILED in this run -- not the number of ERROR checks defined.
+runs,freshness_days,runs.freshness_days,one row per pipeline run,,Age in days of the newest posting_date versus the configured reference date.
+runs,mae,runs.mae,one row per pipeline run,,"Held-out mean absolute error of the winning model. Blank on a halted run, which never trained."
+runs,rmse,runs.rmse,one row per pipeline run,,Held-out root mean squared error of the winning model. Blank on a halted run.
+runs,r2,runs.r2,one row per pipeline run,,Held-out R-squared of the winning model. Blank on a halted run.
+runs,n_drift_alerts,derived,one row per pipeline run,,Number of drift alerts recorded for this run; the alerts themselves are rows in drift_alerts.
+runs,drift_status,derived,one row per pipeline run,,"Why drift is present or absent: 'computed', 'baseline' (no previous batch to compare against), or 'halted' (the DQ gate stopped the batch before monitoring ran)."
+quality_by_column,run_id,runs.run_id,run x column x metric,,Foreign key to runs.run_id -- the key every BI relationship should use.
+quality_by_column,batch_label,runs.batch_label,run x column x metric,,"Denormalised from runs for readability; relate on run_id, and put runs[batch_label] on axes."
+quality_by_column,column,runs.col_stats,run x column x metric,,The data column this statistic describes (the configured monitoring key columns).
+quality_by_column,metric,derived,run x column x metric,,Which statistic the row holds: 'mean' or 'null_rate'.
+quality_by_column,value,runs.col_stats,run x column x metric,rows in the validated batch (null_rate only),The statistic's value on the validated remainder of the batch. Never blank: a run that recorded nothing contributes no rows.
+drift_by_column,run_id,runs.run_id,run x metric x column,,Foreign key to runs.run_id -- the key every BI relationship should use.
+drift_by_column,batch_label,runs.batch_label,run x metric x column,,"Denormalised from runs for readability; relate on run_id, and put runs[batch_label] on axes."
+drift_by_column,metric,derived,run x metric x column,,"Which drift signal: 'psi', 'null_rate_delta' or 'category_shift'."
+drift_by_column,column,runs.drift,run x metric x column,,The data column the signal was measured on.
+drift_by_column,value,runs.drift,run x metric x column,,The signal's value versus the previous cleaned batch. Never blank: a run with no drift measured contributes no rows -- see runs.drift_status.
+drift_by_column,threshold,config monitoring.drift,run x metric x column,,"The configured alert threshold for this metric, exported so a visual compares two columns instead of a typed-in constant."
+drift_by_column,is_alert,derived,run x metric x column,,"Whether value breaches threshold (absolute value for null_rate_delta), mirroring compute_drift. The authoritative alert list is drift_alerts."
+drift_alerts,run_id,runs.run_id,run x alert,,Foreign key to runs.run_id -- the key every BI relationship should use.
+drift_alerts,batch_label,runs.batch_label,run x alert,,"Denormalised from runs for readability; relate on run_id, and put runs[batch_label] on axes."
+drift_alerts,alert,runs.drift.alerts,run x alert,,"One alert string exactly as the pipeline recorded it at run time. Drift is a signal, not a gate: an alert never halted the run."
+model_comparison,model,metrics.json,model x metric (LATEST run only),,"Model name as scored on the held-out split, including the mean baseline."
+model_comparison,metric,metrics.json,model x metric (LATEST run only),,"One of mae, rmse, r2 or mape."
+model_comparison,value,metrics.json,model x metric (LATEST run only),,Score on the held-out test split of the MOST RECENT run only. This table has no per-run history and joins to nothing -- do not relate it to runs.
+model_comparison,is_winner,metrics.json,model x metric (LATEST run only),,True for the model metrics.json names as the winner (lowest MAE).
+model_comparison,beats_baseline,metrics.json,model x metric (LATEST run only),,"Whether the winner beat the mean baseline; a file-level fact, repeated on every row."
+data_dictionary,table,derived,one row per exported column,,Which exported table the column belongs to.
+data_dictionary,column,derived,one row per exported column,,The column name as written to the CSV.
+data_dictionary,source,derived,one row per exported column,,"Where the value comes from: a runs-table column, metrics.json, config, or 'derived'."
+data_dictionary,grain,derived,one row per exported column,,What one row of that table represents.
+data_dictionary,denominator,derived,one row per exported column,,"For a rate, what it is a share OF. Blank for counts and identifiers."
+data_dictionary,definition,derived,one row per exported column,,What the column means.
+export_manifest,exported_at,derived,one row per export,,UTC timestamp at which this export ran -- the 'data as of' card on the report.
+export_manifest,source_table,config database.runs_table,one row per export,,The run-history table the export was built from.
+export_manifest,n_runs,derived,one row per export,,Number of runs in the exported history.
+export_manifest,first_batch,derived,one row per export,,Batch label of the earliest run in the export.
+export_manifest,last_batch,derived,one row per export,,Batch label of the most recent run in the export.

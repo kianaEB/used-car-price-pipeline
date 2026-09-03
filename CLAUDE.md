@@ -48,6 +48,9 @@ the before/after is part of the story.
 10. `Dockerfile` + `docker-compose.yml` — `docker compose up` = Postgres + pipeline + dashboard.
 11. Run for real: `make backfill` (≥3 runs), fill `README.md` results + a dashboard screenshot,
     optionally write `ANALYSIS.md`.
+12. `src/reporting/frames.py` + `bi_export.py` — the runs-history transforms the dashboard already
+    used, extracted so the BI export shares them (one parser, two renderers), plus tidy CSVs to
+    `artifacts/bi` for Power BI. Test the never-null long tables and the data dictionary. (SPEC §13.)
 
 Small, focused commits, each with passing tests. Suggested branch: `build-pipeline`. Conventional
 commits (`feat:`, `test:`, `fix:`, `docs:`). Prefer editing the provided stubs over new structure.
@@ -65,8 +68,11 @@ make data        # small synthetic sample for an offline smoke run
 make all         # one batch: ingest → validate → monitor → db → features → train → evaluate
 make backfill    # replay time-ordered batches to build run history
 make dashboard   # streamlit run dashboard/app.py
+make bi-export   # run history -> tidy CSVs in artifacts/bi (Power BI reads these, not the DB)
 make test        # pytest (+ coverage)
 make lint        # ruff + black --check
+make clean       # remove derived outputs, KEEPING the git-tracked artifacts/bi export
+make clean-all   # also remove artifacts/bi (restore it with `make bi-export`)
 
 # Full stack (Postgres + pipeline + dashboard):
 docker compose up --build
@@ -77,7 +83,8 @@ docker compose up --build
 > `choco install make`). Without make, call the underlying command directly: `make test` → `pytest`,
 > `make all` → `python -m src.pipeline`, `make backfill` → `python -m src.pipeline --backfill`,
 > `make data` → `python -m src.ingest.dataset --synthetic --out data/raw/sample.csv`,
-> `make dashboard` → `streamlit run dashboard/app.py` (see the `Makefile` for the rest). After each
+> `make dashboard` → `streamlit run dashboard/app.py`,
+> `make bi-export` → `python -m src.reporting.bi_export` (see the `Makefile` for the rest). After each
 > build stage, have Claude Code actually run the tests and show the output — don't trust "tests pass"
 > without seeing the real run; the gate and tests are the point of this project.
 
@@ -107,6 +114,8 @@ off the run path, no live secret. (Full checklist: `SPEC.md §12`.)
 ## Guardrails / do-not
 
 - Do **not** add Kafka, Kubernetes, cloud deploy, Spark, or a feature store — out of scope (SPEC §3).
+- Do **not** add Power Automate or Power Apps, and do **not** machine-generate a `.pbix`/`.pbip`,
+  TMDL or report JSON — out of scope / hand-built respectively (SPEC §13.2, §13.4).
 - Do **not** make the pipeline depend on live scraping; `scraper.py` stays optional and must respect
   robots.txt / ToS and rate-limit if implemented.
 - Do **not** use a classifier for price. Regression only.
@@ -114,7 +123,9 @@ off the run path, no live secret. (Full checklist: `SPEC.md §12`.)
 - Do **not** let drift hard-stop the pipeline — it's a signal, not the gate (the DQ ERROR gate is).
 - Do **not** invent a dataset or numbers. No real dataset yet ⇒ run on synthetic and label any
   numbers as synthetic in `README.md` until a real run is done.
-- Do **not** commit `data/raw/*`, `.env`, `*.db`, or `artifacts/*` (see `.gitignore`).
+- Do **not** commit `data/raw/*`, `.env`, `*.db`, or `artifacts/*` — with one carve-out: the BI
+  export `artifacts/bi/*.csv` **is** tracked (a few hundred rows; it is what the Power BI report
+  reads, and committing it keeps every exported number diff-reviewable). See `.gitignore`.
 
 ## When you're done — hand back
 

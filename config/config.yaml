@@ -11,6 +11,8 @@ paths:
   dq_report: data/processed/dq_report.json
   metrics: artifacts/metrics.json
   model: artifacts/model.joblib
+  bi_dir: artifacts/bi                   # tidy CSV export a BI tool reads (tracked in git, unlike
+                                         # the rest of artifacts/ -- the files are a few hundred rows)
 
 # Data source. DEFAULT is 'synthetic' -> the pipeline runs end to end with NO download and NO
 # accounts. Point at a real dataset only if you want a real-world MAE (see `make data-real`).
@@ -86,6 +88,16 @@ monitoring:
   freshness:
     max_staleness_days: 30
     reference_date: "2024-03-01"              # config-driven "now" (synthetic is anchored 2024-01-01)
+
+reporting:                               # BI export layer: Power BI reads these CSVs, not the DB
+  tables:                                # file names written into paths.bi_dir
+    runs: runs.csv                       # one row per run -- the anchor, keyed on run_id
+    quality_by_column: quality_by_column.csv    # long: run x column x metric (mean, null_rate)
+    drift_by_column: drift_by_column.csv        # long: run x metric x column (+ alert threshold)
+    drift_alerts: drift_alerts.csv       # long: one row per recorded drift alert
+    model_comparison: model_comparison.csv      # from paths.metrics -- LATEST run only, other grain
+    data_dictionary: data_dictionary.csv        # generated column reference (grain + denominator)
+    export_manifest: export_manifest.csv        # one row: when this export ran, and over what
 
 features:                                # what the model learns from (target separated from features)
   target: price
