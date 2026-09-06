@@ -1,4 +1,4 @@
-.PHONY: setup data data-real validate db features train evaluate all backfill dashboard test lint clean
+.PHONY: setup data data-real validate db features train evaluate all backfill dashboard bi-export test lint clean clean-all
 
 PY = python
 
@@ -45,11 +45,20 @@ backfill:
 dashboard:
 	streamlit run dashboard/app.py
 
+# export the run history to tidy, BI-ready CSVs (-> artifacts/bi) for Power BI
+bi-export:
+	$(PY) -m src.reporting.bi_export
+
 test:
 	pytest
 
 lint:
 	ruff check src tests && black --check src tests
 
+# remove derived outputs, KEEPING the git-tracked BI export (see clean-all)
 clean:
-	rm -rf artifacts data/processed/*.db data/processed/*.json data/interim/* .pytest_cache
+	rm -rf artifacts/metrics.json artifacts/model.joblib data/processed/*.db data/processed/*.json data/interim/* .pytest_cache
+
+# also remove the tracked BI export -- restore it with `make bi-export`
+clean-all: clean
+	rm -rf artifacts

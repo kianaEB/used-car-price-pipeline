@@ -18,8 +18,13 @@ data/processed/*
 !data/interim/.gitkeep
 !data/processed/.gitkeep
 
-# Build artifacts
-artifacts/
+# Build artifacts. The BI export (artifacts/bi/*.csv) is the one exception and IS tracked: it is a
+# few hundred rows, it is what the Power BI report reads, and committing it makes every exported
+# number diff-reviewable. A negation cannot reach under an excluded directory, hence the four lines.
+artifacts/*
+!artifacts/bi/
+artifacts/bi/*
+!artifacts/bi/*.csv
 *.db
 *.joblib
 

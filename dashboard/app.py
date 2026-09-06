@@ -1,9 +1,11 @@
 """Streamlit monitoring dashboard over the runs table: quality, drift, and model metrics over runs.
 
-The data-shaping helpers (runs history -> plot-ready frames) are pure and unit-tested; the Streamlit
-rendering lives only in main(). Importing this module has no side effects except the project-root
-sys.path bootstrap below -- the one intended exception, required only so `streamlit run` can find
-`src`. The DB connection and column lists come from config (no hardcoded paths).
+The data-shaping helpers live in `src/reporting/frames.py` and are imported here rather than
+redefined, so this dashboard and the BI export (`src/reporting/bi_export.py`) render exactly the
+same transforms; the Streamlit rendering lives only in main(). Importing this module has no side
+effects except the project-root sys.path bootstrap below -- the one intended exception, required
+only so `streamlit run` can find `src`. The DB connection and column lists come from config (no
+hardcoded paths).
 
 Run:  streamlit run dashboard/app.py     (or `make dashboard`)
 """
@@ -13,7 +15,6 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Any
 
 import pandas as pd
 
@@ -27,65 +28,25 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.config import Settings, load_settings  # noqa: E402
 from src.db import database  # noqa: E402
 from src.monitoring.runs import load_runs  # noqa: E402
+from src.reporting.frames import (  # noqa: E402
+    BATCH_COLUMN,
+    category_shift_frame,
+    freshness_frame,
+    model_frame,
+    null_rate_frame,
+    psi_frame,
+    quality_frame,
+)
 
-_BATCH = "batch_label"
+_BATCH = BATCH_COLUMN
 _BATCH_FATAL = {"columns", "min_rows"}  # ERROR checks that halt rather than quarantine
 
 
 # --------------------------------------------------------------- pure data-shaping helpers
-
-
-def quality_frame(runs: pd.DataFrame) -> pd.DataFrame:
-    """Per-run DQ pass-rate, failed-ERROR-check count, quarantine count, and rows ingested."""
-    return runs[
-        [_BATCH, "dq_pass_rate", "n_error_checks", "n_quarantined", "n_rows"]
-    ].copy()
-
-
-def model_frame(runs: pd.DataFrame) -> pd.DataFrame:
-    """Per-run model error metrics (MAE/RMSE/R2); NaN on halted runs that never trained."""
-    return runs[[_BATCH, "mae", "rmse", "r2"]].copy()
-
-
-def freshness_frame(runs: pd.DataFrame) -> pd.DataFrame:
-    """Per-run data freshness (age in days of the newest posting_date)."""
-    return runs[[_BATCH, "freshness_days"]].copy()
-
-
-def psi_frame(runs: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
-    """Per-run PSI for each numeric column (NaN for the first run / halts with no drift)."""
-    return _extract_nested(runs, "drift", "psi", columns)
-
-
-def category_shift_frame(runs: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
-    """Per-run top-category share shift for each categorical column (NaN where no drift)."""
-    return _extract_nested(runs, "drift", "category_shift", columns)
-
-
-def null_rate_frame(runs: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
-    """Per-run null fraction for each key column, read from the run's col_stats."""
-    rows = []
-    for _, run in runs.iterrows():
-        stats = run.get("col_stats") or {}
-        entry: dict[str, Any] = {_BATCH: run[_BATCH]}
-        for col in columns:
-            entry[col] = (stats.get(col) or {}).get("null_rate")
-        rows.append(entry)
-    return pd.DataFrame(rows)
-
-
-def _extract_nested(
-    runs: pd.DataFrame, outer: str, inner: str, columns: list[str]
-) -> pd.DataFrame:
-    """Pull runs[outer][inner][col] into a per-run frame (NaN when the mapping is absent)."""
-    rows = []
-    for _, run in runs.iterrows():
-        mapping = (run.get(outer) or {}).get(inner) or {}
-        entry: dict[str, Any] = {_BATCH: run[_BATCH]}
-        for col in columns:
-            entry[col] = mapping.get(col)
-        rows.append(entry)
-    return pd.DataFrame(rows)
+#
+# The runs-history transforms (quality_frame, model_frame, freshness_frame, psi_frame,
+# category_shift_frame, null_rate_frame) are imported above from src/reporting/frames.py, which the
+# BI export also uses. They are deliberately NOT redefined here: one parser, two renderers.
 
 
 def report_quarantine_count(report: list[dict]) -> int:

@@ -59,6 +59,7 @@ pip install -r requirements.txt
 make data        # small synthetic sample (offline smoke run)
 make backfill    # replay time-ordered batches → build run history
 make dashboard   # Streamlit at http://localhost:8501
+make bi-export   # run history → tidy CSVs in artifacts/bi (for Power BI)
 make test        # pytest (+ coverage)
 ```
 
@@ -115,6 +116,39 @@ Full run summary → `data/processed/dq_report.json`.
 Per run, tracked in the `runs` table and plotted on the dashboard: DQ pass-rate, rows ingested vs
 quarantined, data **freshness**, model **MAE/RMSE**, and drift signals — **PSI** on
 price/mileage/year, null-rate deltas, and category shift — vs. the previous run.
+
+## BI export
+
+`make bi-export` reshapes the `runs` table into tidy, long-form CSVs under `artifacts/bi` for a BI
+tool to read. The pipeline database is ~1.6 GB of listings and quarantined rows; the reporting grain
+is the **run**, and there are six — so a BI tool gets a few hundred rows, not a multi-GB import.
+Unlike the rest of `artifacts/`, these CSVs **are** committed, which keeps every exported number
+diff-reviewable in git.
+
+| file | grain |
+|---|---|
+| `runs.csv` | one row per run — the anchor table, keyed on `run_id` |
+| `quality_by_column.csv` | run × column × metric (`mean`, `null_rate`) |
+| `drift_by_column.csv` | run × metric × column (`psi`, `null_rate_delta`, `category_shift`) + its alert threshold |
+| `drift_alerts.csv` | one row per recorded drift alert |
+| `model_comparison.csv` | model × metric — **latest run only**, a different grain from the rest |
+| `data_dictionary.csv` | one row per exported column: source, grain, denominator, definition |
+| `export_manifest.csv` | one row: when the export ran, and over what |
+
+The dashboard and the export share one set of transforms (`src/reporting/frames.py`), so they cannot
+disagree. Two details worth knowing before building a report on these:
+
+- **Three rates, three denominators.** `dq_check_pass_rate` is **check-level** (share of the DQ
+  checks that passed), while `quarantine_rate` and `row_pass_rate` are **row-level**. They are not
+  each other's complements — the same run can be 0.375 of checks and 0.417 of rows — so each is
+  named for its denominator and `data_dictionary.csv` spells all three out.
+- **A run with no drift contributes no rows,** rather than a row of nulls: the first batch has no
+  previous run to compare against, and a hard-halted batch never reaches the drift step. `runs.csv`
+  records which case it was in `drift_status` (`baseline` / `computed` / `halted`), and no long
+  table ever carries a null value. A blank in a visual always means "not measured".
+
+<!-- TODO: the Power BI report itself is not built yet (SPEC.md §13.2 — MANUAL, PBIP format under
+     powerbi/). Document it and add a screenshot here once it exists; do not describe it before. -->
 
 ## Results
 

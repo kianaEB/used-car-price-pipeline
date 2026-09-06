@@ -43,7 +43,9 @@ does, so it stands on its own across Data QA, Data Engineering, and Data Science
 
 **Anti-goals:** not a Kaggle-score chase, not a distributed-systems showcase. No Kafka, no
 Kubernetes, no cloud deployment, no Spark, no feature store — those are over-reach for this role
-and hard to defend. Depth on quality + monitoring beats breadth of buzzwords.
+and hard to defend. Depth on quality + monitoring beats breadth of buzzwords. The same test governs
+the BI layer in §13: a tested **export** and a **report built on it** earn their place; a Power
+Automate flow does not (§13.4).
 
 ---
 
@@ -80,6 +82,10 @@ and hard to defend. Depth on quality + monitoring beats breadth of buzzwords.
   recorded per run.
 - **Dashboard:** a **Streamlit** app reading the run history — quality pass-rate, drift (PSI),
   freshness, row counts, and model MAE over runs, plus the latest DQ report.
+- **BI export:** tidy, long-form CSVs of the run history under `artifacts/bi`, so a BI tool
+  (**Power BI**) reads a small, reviewable export instead of the multi-GB listings database. One
+  shared set of transforms feeds both the Streamlit dashboard and the export, and a generated data
+  dictionary states every column's grain and denominator (§13).
 - **Packaging:** `Dockerfile` + `docker-compose.yml` (db + pipeline + dashboard); `Makefile`;
   `pytest` + GitHub Actions CI with a coverage gate.
 
@@ -91,7 +97,7 @@ and hard to defend. Depth on quality + monitoring beats breadth of buzzwords.
 - `ANALYSIS.md` write-up (what the DQ layer caught; how drift behaved; model comparison).
 
 **Out of scope (do not add):** Kafka/streaming, Kubernetes, cloud deploy, Spark, a feature store,
-deep learning, a multi-service microservice mesh.
+deep learning, a multi-service microservice mesh, Power Automate / Power Apps (§13.4).
 
 ---
 
@@ -145,8 +151,12 @@ used-car-price-pipeline/
 │   ├── db/database.py            # SQLAlchemy engine, write_df / read_df (SQLite + Postgres)
 │   ├── features/preprocess.py    # clean, encode, leakage-safe split
 │   ├── model/{train.py,evaluate.py}
+│   ├── reporting/
+│   │   ├── frames.py             # runs history -> plot/BI-ready frames (SHARED with the dashboard)
+│   │   └── bi_export.py          # tidy CSV export of the run history -> artifacts/bi (Power BI)
 │   └── pipeline.py               # orchestrate one batch; backfill replays all
 ├── dashboard/app.py              # Streamlit: quality + drift + metrics over runs
+├── powerbi/                      # §13.2 (MANUAL, hand-built): the report, saved as PBIP = plain text
 ├── tests/                        # pytest: quality, drift/monitoring, preprocess, db, model
 ├── notebooks/exploration.ipynb   # optional EDA
 ├── reference/cars_original.py    # preserved prototype (password redacted) — do not run
@@ -306,4 +316,178 @@ metrics onto the run. Report honestly; the winner must beat the mean baseline or
 - [ ] `README.md` results + dashboard screenshot filled **from a real run** (no placeholder numbers);
       dataset + license + row count stated.
 - [ ] `reference/cars_original.py` present, not on any run path, no live secret.
+- [ ] `make bi-export` writes the run-history CSVs to `artifacts/bi`; the long tables carry **no
+      null values**, a run with no prior batch is labelled `baseline` rather than left blank, and
+      `data_dictionary.csv` covers every exported column exactly once (§13.1).
+- [ ] The Power BI report (§13.2) is saved as **PBIP** under `powerbi/`, and every figure on it
+      traces to a column in those CSVs — no measure invents a number. *(MANUAL; not gated by CI.)*
 - [ ] Typed + docstringed; `ruff`/`black` clean.
+
+---
+
+## 13. Reporting layer — Power BI
+
+Added after §12 was met. This layer **exposes** numbers the pipeline already produces and tests; it
+never computes a new one. Its acceptance items live in §12 with the rest.
+
+**Why Power BI reads a CSV export, not the database.** `data/processed/cars.db` is ~1.6 GB — 243k
+validated `cars` rows and 183k `quarantine` rows, most of the width being free-text listing fields.
+Pointing a BI tool at that to draw six weekly points is the wrong shape of work. The reporting grain
+is **the run**, and there are six of them, so the pipeline exports the `runs` table as tidy CSVs and
+Power BI imports those. The database stays the pipeline's, not the report's.
+
+### 13.1 BI export layer — **CODE** (in scope, tested)
+
+**One parser, two renderers.** `src/reporting/frames.py` owns the runs-history transforms (the
+`col_stats` / `drift` JSON blobs → per-run frames). `dashboard/app.py` imports them instead of
+defining its own, so the dashboard and the export cannot diverge; a test pins that both names
+resolve to the same function objects.
+
+`src/reporting/bi_export.py` loads the history via `monitoring.runs.load_runs`, reshapes it through
+those frames, and writes CSVs to `paths.bi_dir` (`artifacts/bi`). File names come from the
+`reporting.tables` config block, thresholds from `monitoring.drift` — nothing hardcoded. Entry
+point: `python -m src.reporting.bi_export`, or `make bi-export`.
+
+| file | grain | columns |
+|---|---|---|
+| `runs.csv` | one row per run | `run_id`, `run_seq`, `ts`, `batch_label`, `is_latest_for_batch`, `n_rows`, `n_quarantined`, `n_validated`, `quarantine_rate`, `row_pass_rate`, `dq_check_pass_rate`, `n_failed_error_checks`, `freshness_days`, `mae`, `rmse`, `r2`, `n_drift_alerts`, `drift_status` |
+| `quality_by_column.csv` | run × column × metric | `run_id`, `batch_label`, `column`, `metric` (`mean` \| `null_rate`), `value` |
+| `drift_by_column.csv` | run × metric × column | `run_id`, `batch_label`, `metric` (`psi` \| `null_rate_delta` \| `category_shift`), `column`, `value`, `threshold`, `is_alert` |
+| `drift_alerts.csv` | run × alert | `run_id`, `batch_label`, `alert` |
+| `model_comparison.csv` | model × metric (**latest run only**) | `model`, `metric`, `value`, `is_winner`, `beats_baseline` |
+| `data_dictionary.csv` | one row per exported column | `table`, `column`, `source`, `grain`, `denominator`, `definition` |
+| `export_manifest.csv` | one row | `exported_at`, `source_table`, `n_runs`, `first_batch`, `last_batch` |
+
+**Three different rates, three different denominators.** This is the trap this layer exists to
+defuse. `run_report` runs a fixed list of **8 checks** (§7), and the pipeline records
+`dq_pass_rate = passed_checks / total_checks` — a **check-level** figure. `n_quarantined / n_rows`
+is a **row-level** figure. They are not complements and must never sit unlabelled beside each other:
+at `2021-W13` the same run is simultaneously 0.375 (3 of 8 checks passed), 0.583 (58.3% of rows
+quarantined), and 0.417 (41.7% of rows validated). Three true numbers, three denominators. So the
+export renames on the way out:
+
+| DB column | exported as | denominator |
+|---|---|---|
+| `dq_pass_rate` | `dq_check_pass_rate` | data-quality checks run |
+| `n_error_checks` | `n_failed_error_checks` | — a count of ERROR-severity checks that **failed** |
+| *(derived)* | `quarantine_rate`, `row_pass_rate` | rows ingested (`n_rows`) |
+
+and `data_dictionary.csv` — generated, not hand-maintained — carries every exported column's source,
+grain, denominator and definition. A test asserts it covers every column of every table exactly
+once, so it cannot fall behind the export.
+
+**`run_id` is the key, never `batch_label`.** `run_id` is `batch_label` plus a timestamp, so labels
+are only unique because `pipeline.run()` drops the runs table before each run; anything calling
+`run_batch` directly can produce two runs sharing a label. The export keeps **every** recorded run
+(discarding history would be the wrong fix) and adds `is_latest_for_batch`, so a visual that wants
+`batch_label` on its axis filters on that flag instead of double-counting silently. All
+relationships are on `run_id`.
+
+`model_comparison.csv` is the one table that does **not** come from the `runs` table: it is read
+from `artifacts/metrics.json`, which holds every model's MAE/RMSE/R²/MAPE for the **most recent run
+only**. Different grain, joins to nothing — labelled as such so no visual implies a per-run model
+history that does not exist.
+
+**The empty-drift run is labelled, not blanked.** The first batch has no previous run to compare
+against, so its `drift` blob is `{}`; and a batch the gate hard-halts (§7) never reaches the drift
+step at all. Rather than let either become NaN noise, `runs.csv` carries `drift_status`:
+
+| value | meaning |
+|---|---|
+| `baseline` | ran clean, but had no previous batch to compare against — drift is undefined, not missing |
+| `computed` | drift measured against the previous cleaned batch |
+| `halted` | the DQ gate stopped the batch before monitoring ran |
+
+and the long tables **contain no rows at all** for a run with nothing measured. Hence the invariant
+a test pins: **`value` is never null in any long table.** A blank in a Power BI visual therefore
+always means "not measured", never "lost on the way out".
+
+`run_seq` (1..n in `ts` order) exists so Power BI can sort `batch_label` chronologically rather than
+alphabetically. `threshold` ships beside each drift value so a conditional format compares two
+columns instead of re-typing a number the config already owns.
+
+**Not exported, and why:** the per-check DQ breakdown. The `runs` table stores only `dq_pass_rate`
+and `n_error_checks` per run; the per-check detail (`schema`, `ranges`, `duplicates`, …) is written
+to `data/processed/dq_report.json` for the **latest** run only, so there is no per-check history to
+export. A "which check fired, and when" page would first need the pipeline to persist per-check
+results per run — a real extension, deliberately not smuggled in here.
+
+### 13.2 The Power BI report — **MANUAL** (built in Power BI Desktop)
+
+Not generated from this repo. No `.pbix`, `.pbip`, TMDL or report JSON is machine-written — that
+would be fabricating an artifact nobody reviewed, which §2.1 forbids. This section is the contract
+the hand-built report is held to.
+
+**Saved as PBIP, not PBIX.** File → Save as → *Power BI project (.pbip)*, which writes the semantic
+model as **TMDL** and the report as JSON: plain text, so the model and the DAX are diffable and
+reviewable in git like the rest of this repo. A `.pbix` is an opaque zip, which would put the one
+part of this layer that contains logic beyond review. Committed under `powerbi/`.
+
+**The model it consumes — a star, keyed on `run_id`:**
+
+- `runs` is the anchor: one row per run, `run_id` the key; sort `batch_label` by `run_seq`.
+- `quality_by_column`, `drift_by_column`, `drift_alerts` are fact tables, each **many-to-one** to
+  `runs` on `run_id`, single cross-filter direction. Hide their duplicated `batch_label` and put
+  `runs[batch_label]` on axes — with a report-level filter of `is_latest_for_batch = TRUE`, so a
+  re-run that appends a second row for a label cannot double-count a visual (§13.1).
+- `model_comparison`, `data_dictionary` and `export_manifest` are disconnected tables (different
+  grain / documentation / provenance card). Do not relate them.
+- No date dimension is exported: the axis is the batch, not the calendar. Add one in DAX only if a
+  visual actually needs date arithmetic.
+
+**Measures (DAX; each must reduce to a column in the export, never a typed-in number):**
+`Runs Recorded`, `Rows Ingested`, `Rows Quarantined`, `Quarantine Rate`, `Latest DQ Check Pass Rate`,
+`Latest MAE`, `Drift Alerts`, `Max PSI`, `Data As Of`.
+
+**Pages:**
+
+1. **Overview** — cards (Runs Recorded, Rows Ingested, Quarantine Rate, Drift Alerts, Latest MAE,
+   Data As Of); DQ check pass-rate over batches; rows ingested vs quarantined per batch.
+2. **Data quality** — null-rate per key column over batches; column means over batches; a per-run
+   table of check pass rate, failed-ERROR-check count, quarantine count.
+3. **Drift** — a `metric` slicer over `drift_by_column`; PSI by batch with a reference line driven
+   by `threshold`; `is_alert` conditional formatting; the `drift_alerts` list beside it.
+4. **Model** — MAE / RMSE / R² over batches from `runs.csv`, and the four-model comparison from
+   `model_comparison.csv`, captioned as latest-run-only.
+
+**Labelling rules — two live ambiguities.** A card reading "DQ pass rate 37.5%" beside one reading
+"Quarantine rate 58%" is a contradiction to anyone who does not know the denominators differ, so
+every rate card must name its denominator ("DQ checks passed, 3 of 8" / "Rows quarantined, 58%").
+Separately, `README.md` carries two different verified 43% figures — the model's MAE improvement
+over the mean baseline, and the data-quality catch rate. Any card showing either must say which.
+`data_dictionary.csv` is the backing reference for both; surfacing it as a hidden report page is a
+cheap way to keep the definitions with the numbers.
+
+### 13.3 Publish and document — **MANUAL**
+
+Publishing to the Power BI service requires a work or school account; a personal Microsoft account
+cannot. Confirm the licence before promising it anywhere.
+
+**Point the report at GitHub raw URLs, not a local path.** Because the export is committed (§13.1),
+the preferred source is the **Web connector** against
+`https://raw.githubusercontent.com/<owner>/used-car-price-pipeline/main/artifacts/bi/<file>.csv`.
+Anonymous authentication, source privacy level **Public**, and scheduled refresh then works **with
+no on-premises data gateway** — and the report demonstrably tracks the repo, which is the story
+worth telling. Two caveats: the repo must be public, and raw URLs are CDN-cached for a few minutes,
+so a push is not instantly visible to a refresh.
+
+*Fallback, only if the repo stays private:* a local CSV path plus an on-premises data gateway, or
+the folder synced via OneDrive/SharePoint. A local path with no gateway cannot refresh in the
+service at all — accept a static snapshot and say so on the report.
+
+Then: a screenshot into `docs/`, a short `README.md` section, and — per `CLAUDE.md` — the numbers
+reach a résumé only after they are recorded as **Verified**.
+
+### 13.4 Power Automate / Power Apps — **OUT OF SCOPE**
+
+Deliberately not built, for the same reason §1 rules out Kafka and Kubernetes.
+
+A flow or a canvas app here would be **browser click-ops leaving no reviewable artifact**: no file
+in this repo to diff, no test to run, nothing to defend in an interview beyond a screenshot. And
+there is no question it answers — this pipeline has no approval step, no human in the loop, and no
+notification that `log.warning` and the dashboard do not already carry. Adding one would be building
+for a keyword in a job ad rather than for a problem in the project, which is precisely the failure
+mode §1's anti-goals exist to prevent.
+
+If a genuine need appears — an alert routed to someone who never opens the dashboard — the
+defensible version is a small, tested notifier in `src/`, not a canvas.
